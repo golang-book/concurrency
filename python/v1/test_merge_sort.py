@@ -1,6 +1,4 @@
-import threading
 from . import go, make, recv, run, send
-
 
 # Original functions:
 #
@@ -43,6 +41,7 @@ from . import go, make, recv, run, send
 #     }
 #     return m
 # }
+
 
 def merge(l, r):
     m = []

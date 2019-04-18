@@ -23,7 +23,9 @@ class WaitingQueue(list):
 
 
 class Channel:
-    def __init__(self):
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.buffer = []
         self.closed = False
         self.waiting_to_send = WaitingQueue()
         self.waiting_to_recv = WaitingQueue()
@@ -52,16 +54,16 @@ def run():
 
 # Channel Methods
 
-def make():
-    return Channel()
+def make(capacity=0):
+    return Channel(capacity)
 
 
 def len(channel):
-    return 0
+    return builtins.len(channel.buffer)
 
 
 def cap(channel):
-    return 0
+    return channel.capacity
 
 
 def send(channel, value, callback):
@@ -81,6 +83,12 @@ def send(channel, value, callback):
         go(lambda: receiver(value, True))
         return
 
+    # "A send on a buffered channel can proceed if there is room in the buffer."
+    if len(channel) < cap(channel):
+        channel.buffer.append(value)
+        go(callback)
+        return
+
     channel.waiting_to_send.enqueue((value, callback))
 
 
@@ -88,6 +96,17 @@ def recv(channel, callback):
     # "Receiving from a nil channel blocks forever."
     if channel is None:
         WaitingQueue.total += 1
+        return
+
+    # if there is a value in the buffer, receive it
+    if len(channel) > 0:
+        # pop the first element, because:
+        # "Channels act as first-in-first-out queues.
+        # For example, if one goroutine sends values on a channel and
+        # a second goroutine receives them,
+        # the values are received in the order sent. "
+        value = channel.buffer.pop(0)
+        go(lambda: callback(value, True))
         return
 
     # "if anything is currently blocked on sending for this channel, receive it"
@@ -133,9 +152,9 @@ default = object()
 def select(cases, callback=None):
     def is_ready(case):
         if case[0] == send:
-            return case[1].closed or case[1].waiting_to_recv
+            return case[1].closed or len(case[1]) < cap(case[1]) or case[1].waiting_to_recv
         elif case[0] == recv:
-            return case[1].closed or case[1].waiting_to_send
+            return case[1].closed or len(case[1]) > 0 or case[1].waiting_to_send
         elif case[0] == default:
             return False
 
