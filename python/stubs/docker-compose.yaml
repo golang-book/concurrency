@@ -1,0 +1,8 @@
+version: '3'
+
+services:
+  tests:
+    build: .
+    volumes:
+      - .:/project
+    entrypoint: python3 -B -m pytest /project --cache-clear -v
